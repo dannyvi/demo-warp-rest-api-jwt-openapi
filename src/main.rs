@@ -1,6 +1,6 @@
 use crate::server::server;
 
-mod context;
+mod conf;
 mod server;
 
 #[tokio::main]
