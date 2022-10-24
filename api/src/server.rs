@@ -1,22 +1,24 @@
-use crate::conf::config::CONFIG;
-use std::{net::SocketAddr, convert::Infallible};
+use crate::{
+    conf::{config::CONFIG, context::Context},
+    index::routes,
+};
+use std::{convert::Infallible, net::SocketAddr};
 
 use hyper::Server;
 use listenfd::ListenFd;
-use warp::{Filter };
 
 pub async fn server() -> Result<(), hyper::Error> {
     let server_addr = CONFIG
+        .clone()
         .server
         .as_str()
         .parse::<SocketAddr>()
         .expect("Unable to parse socket address");
-    let routes = warp::any().map(|| "Hello, World!");
-    
-    
-    let svc = warp::service(
-        routes
-    );
+    // let routes = warp::any().map(|| "Hello, World!");
+
+    let context = Context::new(CONFIG.clone().database_url, CONFIG.clone().secret);
+
+    let svc = warp::service(routes(context));
 
     let make_svc = hyper::service::make_service_fn(|_: _| {
         let svc = svc.clone();
@@ -32,5 +34,4 @@ pub async fn server() -> Result<(), hyper::Error> {
     };
 
     server.serve(make_svc).await
-    
 }

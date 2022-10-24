@@ -4,7 +4,7 @@ use r2d2::{Pool, PooledConnection};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
-pub type Pooled = PooledConnection<ConnectionManager<PgConnection>>;
+pub type Connection = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[derive(Clone)]
 pub struct Database {
@@ -30,7 +30,7 @@ impl Database {
         Database { pool }
     }
 
-    pub fn conn(&self) -> Pooled {
+    pub fn conn(&self) -> Connection {
         self.pool.get().unwrap()
     }
 }
