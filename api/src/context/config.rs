@@ -7,6 +7,7 @@ pub struct Config {
     pub database_url: String,
     pub redis_url: String,
     pub secret: String,
+    pub expire: i64,
     pub server: String,
 }
 

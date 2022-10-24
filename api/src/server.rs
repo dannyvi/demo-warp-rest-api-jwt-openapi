@@ -1,5 +1,5 @@
 use crate::{
-    conf::{config::CONFIG, context::Context},
+    context::{config::CONFIG, context::Context},
     index::routes,
 };
 use std::{convert::Infallible, net::SocketAddr};
@@ -16,7 +16,7 @@ pub async fn server() -> Result<(), hyper::Error> {
         .expect("Unable to parse socket address");
     // let routes = warp::any().map(|| "Hello, World!");
 
-    let context = Context::new(CONFIG.clone().database_url, CONFIG.clone().secret);
+    let context = Context::new(CONFIG.clone().database_url, CONFIG.clone().secret, CONFIG.clone().expire);
 
     let svc = warp::service(routes(context));
 
