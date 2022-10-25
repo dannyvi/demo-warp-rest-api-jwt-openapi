@@ -30,8 +30,8 @@ pub struct Jwt {
 }
 
 impl Jwt {
-    pub fn new(secret: String, expire: i64) -> Self {
-        Self { secret, expire }
+    pub fn new(secret: &String, expire: &i64) -> Self {
+        Self { secret: secret.to_string(), expire: *expire }
     }
 
     pub fn new_claim(&self, id: String, permissions: Vec<String>) -> anyhow::Result<Claims> {

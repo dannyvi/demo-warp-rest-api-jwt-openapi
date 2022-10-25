@@ -9,6 +9,7 @@ pub struct AuthUser {
 }
 
 impl AuthUser {
+    #[allow(dead_code)]
     pub fn new(id: String, permissions: Vec<String>) -> Self {
         Self {
             id,

@@ -2,29 +2,33 @@ use std::convert::Infallible;
 
 use chrono::Local;
 use derive_more::{Display, TryInto};
-use warp::{
-    http::{HeaderValue, StatusCode},
-    reply::Response,
-};
-// use log::info;
+
 use serde::{Deserialize, Serialize};
 use warp::{
     self,
+    http::{HeaderValue, StatusCode},
     reject::{MethodNotAllowed, PayloadTooLarge, UnsupportedMediaType},
-    reply::{self},
+    reply::{self, Response},
     Rejection, Reply,
 };
+
+use diesel::result::Error::{self as DieselError, NotFound};
+use log::error;
 
 #[derive(Clone, Debug, Display, TryInto)]
 pub enum ApiError {
     InternalError,
     #[display(fmt = "Db")]
-    DbConnection,
+    Db,
     #[display(fmt = "Unauthorized")]
     Unauthorized(String),
+    #[display(fmt = "Not Found")]
+    NotFound(String),
 }
 
 impl warp::reject::Reject for ApiError {}
+
+// impl warp::reject::Reject for diesel::result::Error {}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ErrorResponse {
@@ -44,7 +48,8 @@ impl ErrorResponse {
 impl ApiError {
     fn status(&self) -> StatusCode {
         match self {
-            ApiError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::NotFound(_) => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -58,14 +63,25 @@ impl Reply for ApiError {
     }
 }
 
+impl From<DieselError> for ApiError {
+    fn from(error: DieselError) -> Self {
+        match error {
+            NotFound => Self::NotFound("Not Found".to_owned()),
+            _ => {
+                error!("Db Error!");
+                Self::Db
+            }
+        }
+    }
+}
+
 impl From<&ApiError> for ErrorResponse {
     fn from(error: &ApiError) -> Self {
-        println!("{:?}", error);
         ErrorResponse {
             code: error.status().as_u16(),
             message: match error {
-                ApiError::InternalError => String::from(""),
-                ApiError::DbConnection => String::from("Db"),
+                ApiError::InternalError => String::from("Server Internal Error"),
+                ApiError::Db => String::from("Server Internal Error"),
                 _ => String::try_from(error.clone()).unwrap_or("Not Reco".to_owned()),
             },
         }
@@ -85,7 +101,7 @@ impl From<&str> for ErrorResponse {
 pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
     let code;
     let body;
-    // info!("rejection handler: {:?}", err);
+
     if err.is_not_found() {
         code = StatusCode::NOT_FOUND;
         body = reply::json(&ErrorResponse::new(code, "Not Found".to_owned()));

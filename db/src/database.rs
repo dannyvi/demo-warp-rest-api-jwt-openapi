@@ -4,7 +4,7 @@ use r2d2::{Pool, PooledConnection};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
-pub type Connection = PooledConnection<ConnectionManager<PgConnection>>;
+pub type DbConn = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[derive(Clone)]
 pub struct Database {
@@ -13,7 +13,7 @@ pub struct Database {
 
 impl Database {
     /// Creates a repo using default configuration for the underlying connection pool.
-    pub fn new(database_url: String) -> Self {
+    pub fn new(database_url: &String) -> Self {
         Self::from_pool_builder(database_url.as_str(), r2d2::Builder::default())
     }
 
@@ -30,7 +30,7 @@ impl Database {
         Database { pool }
     }
 
-    pub fn conn(&self) -> Connection {
+    pub fn conn(&self) -> DbConn {
         self.pool.get().unwrap()
     }
 }

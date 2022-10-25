@@ -7,3 +7,4 @@ pub mod database;
 pub use database::Database;
 
 pub mod models;
+
