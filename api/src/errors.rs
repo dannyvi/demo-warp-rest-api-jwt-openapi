@@ -28,8 +28,6 @@ pub enum ApiError {
 
 impl warp::reject::Reject for ApiError {}
 
-// impl warp::reject::Reject for diesel::result::Error {}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ErrorResponse {
     code: u16,

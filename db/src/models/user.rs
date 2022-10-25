@@ -16,6 +16,7 @@ pub struct User {
 #[derive(Insertable, AsChangeset, Serialize, Deserialize)]
 #[table_name = "users"]
 pub struct UserDTO {
+    pub id: String,
     pub username: String,
     pub mobile: String,
 }
@@ -29,11 +30,11 @@ impl User {
         users.find(user_id).get_result::<User>(conn)
     }
 
-    // pub fn insert(new_users: UserDTO, conn: &Connection) -> QueryResult<usize> {
-    //     diesel::insert_into(users)
-    //         .values(&new_users)
-    //         .execute(conn)
-    // }
+    pub fn insert(new_user: UserDTO, conn: &DbConn) -> QueryResult<usize> {
+        diesel::insert_into(users)
+            .values(&new_user)
+            .execute(conn)
+    }
 
     // pub fn update(i: i32, updated_users: UserDTO, conn: &Connection) -> QueryResult<usize> {
     //     diesel::update(users.find(i))
