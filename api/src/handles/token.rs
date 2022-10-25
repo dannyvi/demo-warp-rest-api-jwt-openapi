@@ -42,9 +42,9 @@ async fn handle_create_token(
     ctx: Context,
 ) -> Result<impl Reply, Rejection> {
     let claims = ctx
-        .jwt_claim(info.id, info.permissions)
+        ._jwt_claim(info.id, info.permissions)
         .expect("Failed to encode");
     Ok(warp::reply::json(&TokenResponse::from(
-        ctx.jwt_encode(claims).unwrap(),
+        ctx._jwt_encode(claims).unwrap(),
     )))
 }

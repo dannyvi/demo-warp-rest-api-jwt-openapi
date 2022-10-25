@@ -2,19 +2,25 @@ use std::convert::Infallible;
 
 use chrono::Local;
 use derive_more::{Display, TryInto};
-use warp::http::{HeaderValue, StatusCode};
+use warp::{
+    http::{HeaderValue, StatusCode},
+    reply::Response,
+};
 // use log::info;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use warp::{
     self,
+    reject::{MethodNotAllowed, PayloadTooLarge, UnsupportedMediaType},
     reply::{self},
-    Rejection, Reply, reject::{PayloadTooLarge, UnsupportedMediaType, MethodNotAllowed},
+    Rejection, Reply,
 };
 
 #[derive(Clone, Debug, Display, TryInto)]
 pub enum ApiError {
     InternalError,
+    #[display(fmt = "Db")]
     DbConnection,
+    #[display(fmt = "Unauthorized")]
     Unauthorized(String),
 }
 
@@ -26,13 +32,13 @@ pub struct ErrorResponse {
     message: String,
 }
 
-impl  ErrorResponse {
+impl ErrorResponse {
     fn new(code: StatusCode, message: String) -> Self {
         Self {
             code: code.as_u16(),
             message,
         }
-    }   
+    }
 }
 
 impl ApiError {
@@ -42,34 +48,36 @@ impl ApiError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+}
 
-    fn into_response(&self) -> std::result::Result<impl Reply, Infallible> {
-        let json = warp::reply::json(&ErrorResponse::from(self));
+impl Reply for ApiError {
+    fn into_response(self) -> Response {
+        let json = warp::reply::json(&ErrorResponse::from(&self));
 
-        Ok(warp::reply::with_status(json, self.status()))
+        warp::reply::with_status(json, self.status()).into_response()
     }
 }
 
-
 impl From<&ApiError> for ErrorResponse {
     fn from(error: &ApiError) -> Self {
+        println!("{:?}", error);
         ErrorResponse {
             code: error.status().as_u16(),
             message: match error {
                 ApiError::InternalError => String::from(""),
-                _ => String::try_from(error.clone()).unwrap(),
+                ApiError::DbConnection => String::from("Db"),
+                _ => String::try_from(error.clone()).unwrap_or("Not Reco".to_owned()),
             },
         }
     }
 }
-
 
 impl From<&str> for ErrorResponse {
     fn from(err: &str) -> Self {
         let _date = Local::now();
         ErrorResponse {
             code: StatusCode::BAD_REQUEST.as_u16(),
-            message: String::from(err)
+            message: String::from(err),
         }
     }
 }
@@ -81,14 +89,10 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
     if err.is_not_found() {
         code = StatusCode::NOT_FOUND;
         body = reply::json(&ErrorResponse::new(code, "Not Found".to_owned()));
-    }   
-
-    else if let Some(e) = err.find::<ApiError>() {
+    } else if let Some(e) = err.find::<ApiError>() {
         code = e.status();
         body = reply::json(&ErrorResponse::from(e));
-    }
-    
-    else if let Some(cause) = err.find::<warp::cors::CorsForbidden>() {
+    } else if let Some(cause) = err.find::<warp::cors::CorsForbidden>() {
         code = StatusCode::FORBIDDEN;
         body = reply::json(&ErrorResponse::new(code, cause.to_string()));
     } else if let Some(cause) = err.find::<warp::body::BodyDeserializeError>() {
@@ -108,7 +112,10 @@ pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply,
         body = reply::json(&ErrorResponse::new(code, cause.to_string()));
     } else {
         code = StatusCode::INTERNAL_SERVER_ERROR;
-        body = reply::json(&ErrorResponse::new(code, format!("unexpected error: {:?}", err)));
+        body = reply::json(&ErrorResponse::new(
+            code,
+            format!("unexpected error: {:?}", err),
+        ));
     }
     let mut rep = reply::with_status(body, code).into_response();
     rep.headers_mut()

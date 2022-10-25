@@ -1,11 +1,14 @@
 use std::convert::Infallible;
 
 use demo_db::{database::Connection, Database};
-use warp::{Filter, Rejection};
+use warp::{reject, Filter, Rejection};
 
 use crate::errors::ApiError;
 
-use super::jwt::{Claims, Jwt};
+use super::{
+    auth::AuthUser,
+    jwt::{Claims, Jwt},
+};
 
 #[derive(Clone)]
 pub struct Context {
@@ -20,7 +23,7 @@ impl Context {
         Self { db, jwt }
     }
 
-    pub fn db_conn(&self) -> Connection {
+    pub fn _db_conn(&self) -> Connection {
         self.db.conn()
     }
 
@@ -28,20 +31,51 @@ impl Context {
         warp::any().map(move || self.clone())
     }
 
-    // pub fn expand(&self,) -> impl Filter<Extract = (AuthInfo, Connection), Error = Infallible> + Clone {
-    //     // warp::any().map(move || self.clone())
-    //     warp::header("authorization")
-    //         .map(|token: String| token)
-    //         .or(warp::any().map(|| "".to_owned()))
-    //         .unify()
-    //         .map(move |token| return (self.filter_user_info(token), self.db_conn()))
-    // }
+    pub fn expand(
+        self,
+    ) -> impl Filter<Extract = ((AuthUser, Connection),), Error = Rejection> + Clone {
+        warp::header("authorization")
+            .map(|token: String| token)
+            .or(warp::any().map(|| "".to_owned()))
+            .unify()
+            .and(self.filter())
+            .and_then(move |token, ctx: Context| async move {
+                let res = ctx._filter_user_info(token);
+                if res.is_err() {
+                    Err(reject::custom(res.unwrap_err()))
+                } else {
+                    Ok((res.unwrap(), ctx._db_conn()))
+                }
+            })
+    }
 
-    pub fn jwt_claim(&self, id: String, permissions: Vec<String>) -> anyhow::Result<Claims> {
+    pub fn db(self) -> impl Filter<Extract = (Connection,), Error = Rejection> + Clone {
+        self.filter().and_then(move |ctx: Context| async move {
+            Ok::<Connection, Rejection>(ctx._db_conn())
+        })
+    }
+
+    pub fn auth(self) -> impl Filter<Extract = (AuthUser,), Error = Rejection> + Clone {
+        warp::header("authorization")
+            .map(|token: String| token)
+            .or(warp::any().map(|| "".to_owned()))
+            .unify()
+            .and(self.filter())
+            .and_then(move |token, ctx: Context| async move {
+                let res = ctx._filter_user_info(token);
+                if res.is_err() {
+                    Err(reject::custom(res.unwrap_err()))
+                } else {
+                    Ok(res.unwrap())
+                }
+            })
+    }
+
+    pub fn _jwt_claim(&self, id: String, permissions: Vec<String>) -> anyhow::Result<Claims> {
         self.jwt.new_claim(id, permissions)
     }
 
-    pub fn jwt_encode(&self, claims: Claims) -> Result<String, ApiError> {
+    pub fn _jwt_encode(&self, claims: Claims) -> Result<String, ApiError> {
         self.jwt.encode(claims)
     }
 
@@ -50,38 +84,17 @@ impl Context {
         self.jwt.decode(token.as_str())
     }
 
-    pub fn filter_user_info(&self, token: String) -> Result<AuthInfo, ApiError> {
+    pub fn _filter_user_info(&self, token: String) -> Result<AuthUser, ApiError> {
         if token == "".to_owned() {
-            Ok(AuthInfo {
-                user_id: "0".to_owned(),
-                permissions: vec!["ROLE_ANY".to_owned()],
-            })
+            Ok(AuthUser::default())
         } else if !token.starts_with("Bearer ") {
-            Err(ApiError::Unauthorized("e".to_string()))
+            Err(ApiError::Unauthorized(
+                "Authorization should begin with Bearer.".to_string(),
+            ))
         } else {
             let trimmed = token.trim_start_matches("Bearer ").to_owned();
             self._jwt_decode(trimmed)
-                .map(|claims| AuthInfo::from(claims))
-            // match self._jwt_decode(trimmed) {
-            //     Ok(claims) => Ok(AuthInfo::from(claims)),
-            //     Err(e) => Err(e)
-            // }
-        }
-    }
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct AuthInfo {
-    user_id: String,
-    permissions: Vec<String>,
-}
-
-impl From<Claims> for AuthInfo {
-    fn from(claims: Claims) -> Self {
-        Self {
-            user_id: claims.id,
-            permissions: claims.permissions,
+                .map(|claims| AuthUser::from(claims))
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{context::config::CONFIG, errors::ApiError};
+use crate::errors::ApiError;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{self, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ impl Claims {
     }
 }
 
-type DateTimeUtc = chrono::DateTime<chrono::Utc>;
+// type DateTimeUtc = chrono::DateTime<chrono::Utc>;
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
